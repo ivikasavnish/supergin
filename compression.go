@@ -247,13 +247,17 @@ func CompressionMiddleware(config ...CompressionConfig) gin.HandlerFunc {
 		cfg = config[0]
 	}
 
+	// Create the decompression middleware once
+	decompMiddleware := DecompressionMiddleware()
+	compressionMiddleware := SnappyCompressionMiddleware(cfg)
+
 	return func(c *gin.Context) {
 		// First decompress incoming requests
-		DecompressionMiddleware()(c)
+		decompMiddleware(c)
 		
 		// Then compress outgoing responses
 		if !c.IsAborted() {
-			SnappyCompressionMiddleware(cfg)(c)
+			compressionMiddleware(c)
 		}
 	}
 }

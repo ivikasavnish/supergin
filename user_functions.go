@@ -84,8 +84,10 @@ func (r *UserFunctionRegistry) UnregisterFunction(name string) error {
 
 // Add user function registry to Engine
 func (e *Engine) RegisterUserFunction(name, description string, handler gin.HandlerFunc) error {
+	// Note: e.userFunctions is initialized in New(), so this should never be nil
+	// But we check anyway for safety
 	if e.userFunctions == nil {
-		e.userFunctions = NewUserFunctionRegistry()
+		return fmt.Errorf("user function registry not initialized")
 	}
 	return e.userFunctions.RegisterFunction(name, description, handler)
 }
@@ -107,13 +109,16 @@ func (e *Engine) ListUserFunctions() map[string]*UserFunction {
 }
 
 // ApplyUserFunction applies a registered user function to a route
+// If the function is not found, it logs a warning and continues
 func (rb *RouteBuilder) ApplyUserFunction(name string) *RouteBuilder {
 	if rb.engine.userFunctions == nil {
+		fmt.Printf("Warning: user function registry not initialized, cannot apply '%s'\n", name)
 		return rb
 	}
 
 	fn, exists := rb.engine.userFunctions.GetFunction(name)
 	if !exists {
+		fmt.Printf("Warning: user function '%s' not found, skipping\n", name)
 		return rb
 	}
 
