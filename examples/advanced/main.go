@@ -9,8 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/ivikasavnish/supergin"
-
-	"google.golang.org/protobuf/proto"
 )
 
 // HTTP Models
@@ -37,74 +35,9 @@ type ChatMessage struct {
 	Type      string    `json:"type"` // "message", "join", "leave"
 }
 
-// Mock gRPC protobuf types (in real usage, these would be generated from .proto files)
-type CreateUserGrpcRequest struct {
-	Name  string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Email string `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
-	Age   int32  `protobuf:"varint,3,opt,name=age,proto3" json:"age,omitempty"`
-}
-
-type UserGrpcResponse struct {
-	Id        int32  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name      string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Email     string `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
-	Age       int32  `protobuf:"varint,4,opt,name=age,proto3" json:"age,omitempty"`
-	CreatedAt int64  `protobuf:"varint,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-}
-
-// Implement proto.Message interface for mock types
-func (x *CreateUserGrpcRequest) Reset()         { *x = CreateUserGrpcRequest{} }
-func (x *CreateUserGrpcRequest) String() string { return "CreateUserGrpcRequest{}" }
-func (*CreateUserGrpcRequest) ProtoMessage()    {}
-
-func (x *UserGrpcResponse) Reset()         { *x = UserGrpcResponse{} }
-func (x *UserGrpcResponse) String() string { return "UserGrpcResponse{}" }
-func (*UserGrpcResponse) ProtoMessage()    {}
-
-// Implement GrpcConverter for custom conversion logic
-func (req *CreateUserRequest) ToGrpc() (proto.Message, error) {
-	return &CreateUserGrpcRequest{
-		Name:  req.Name,
-		Email: req.Email,
-		Age:   int32(req.Age),
-	}, nil
-}
-
-func (req *CreateUserRequest) FromGrpc(msg proto.Message) error {
-	grpcReq, ok := msg.(*CreateUserGrpcRequest)
-	if !ok {
-		return fmt.Errorf("invalid gRPC message type")
-	}
-
-	req.Name = grpcReq.Name
-	req.Email = grpcReq.Email
-	req.Age = int(grpcReq.Age)
-	return nil
-}
-
-func (resp *UserResponse) ToGrpc() (proto.Message, error) {
-	return &UserGrpcResponse{
-		Id:        int32(resp.ID),
-		Name:      resp.Name,
-		Email:     resp.Email,
-		Age:       int32(resp.Age),
-		CreatedAt: resp.CreatedAt.Unix(),
-	}, nil
-}
-
-func (resp *UserResponse) FromGrpc(msg proto.Message) error {
-	grpcResp, ok := msg.(*UserGrpcResponse)
-	if !ok {
-		return fmt.Errorf("invalid gRPC message type")
-	}
-
-	resp.ID = int(grpcResp.Id)
-	resp.Name = grpcResp.Name
-	resp.Email = grpcResp.Email
-	resp.Age = int(grpcResp.Age)
-	resp.CreatedAt = time.Unix(grpcResp.CreatedAt, 0)
-	return nil
-}
+// NOTE: gRPC bridge functionality requires actual .proto files and generated code.
+// This example focuses on WebSocket and HTTP API features.
+// For a complete gRPC bridge example, see the SuperGin documentation.
 
 // Services (using DI)
 type UserService interface {
@@ -301,9 +234,6 @@ func main() {
 		DocsPath:       "/api/docs",
 	})
 
-	// Setup gRPC bridge
-	setupGrpcBridge(app)
-
 	// Setup WebSocket chat
 	setupWebSocket(app)
 
@@ -315,7 +245,6 @@ func main() {
 	fmt.Println("")
 	fmt.Println("📚 API Documentation: http://localhost:8080/api/docs")
 	fmt.Println("👥 Users API: http://localhost:8080/api/users")
-	fmt.Println("🔌 gRPC Bridge: http://localhost:8080/grpc/*")
 	fmt.Println("💬 WebSocket Chat: ws://localhost:8080/ws/chat")
 	fmt.Println("🌐 Chat Demo: http://localhost:8080/chat")
 	fmt.Println("")
@@ -338,36 +267,9 @@ func setupDI() {
 	fmt.Println("✅ Dependency injection configured")
 }
 
-func setupGrpcBridge(app *supergin.Engine) {
-	// Register gRPC service (in real usage, this would connect to actual gRPC server)
-	bridge := app.GrpcBridge()
-
-	// For demo purposes, we'll simulate a gRPC service
-	// In production, you would connect to a real gRPC server
-	err := bridge.RegisterGrpcService("userService", "localhost:9090", "user.UserService")
-	if err != nil {
-		log.Printf("⚠️  Failed to register gRPC service (demo mode): %v", err)
-	}
-
-	// Register gRPC method mappings
-	err = bridge.RegisterGrpcMethod("userService", "CreateUser",
-		CreateUserRequest{}, UserResponse{},
-		&CreateUserGrpcRequest{}, &UserGrpcResponse{})
-	if err != nil {
-		log.Printf("⚠️  Failed to register gRPC method (demo mode): %v", err)
-	}
-
-	// Create bidirectional gRPC-HTTP bridge
-	err = app.BidirectionalGrpcHttp("user_create",
-		"/api/users/grpc", "userService", "CreateUser",
-		CreateUserRequest{}, UserResponse{},
-		&CreateUserGrpcRequest{}, &UserGrpcResponse{})
-	if err != nil {
-		log.Printf("⚠️  Failed to create bidirectional bridge (demo mode): %v", err)
-	}
-
-	fmt.Println("✅ gRPC bridge configured (demo mode)")
-}
+// setupGrpcBridge is disabled in this example as it requires actual .proto files
+// For gRPC bridge functionality, generate proper protobuf types using protoc
+// and refer to the SuperGin documentation for complete setup instructions.
 
 func setupWebSocket(app *supergin.Engine) {
 	chatService := supergin.Resolve[ChatService]("chatService")
@@ -437,12 +339,11 @@ func setupRoutes(app *supergin.Engine) {
 		WithTags("health").
 		Handler(func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
-				"status":      "healthy",
-				"timestamp":   time.Now(),
-				"version":     "2.0.0",
-				"features":    []string{"http", "websocket", "grpc-bridge", "di"},
-				"websocket":   "enabled",
-				"grpc_bridge": "enabled",
+				"status":    "healthy",
+				"timestamp": time.Now(),
+				"version":   "2.0.0",
+				"features":  []string{"http", "websocket", "di"},
+				"websocket": "enabled",
 			})
 		})
 
@@ -458,19 +359,17 @@ func setupRoutes(app *supergin.Engine) {
 			c.JSON(http.StatusOK, gin.H{
 				"message": "SuperGin Advanced Features Demo",
 				"features": gin.H{
-					"total_routes":        len(routes),
-					"di_services":         len(services),
-					"websocket_enabled":   true,
-					"grpc_bridge_enabled": true,
-					"input_validation":    true,
-					"named_routes":        true,
+					"total_routes":      len(routes),
+					"di_services":       len(services),
+					"websocket_enabled": true,
+					"input_validation":  true,
+					"named_routes":      true,
 				},
 				"endpoints": gin.H{
 					"api_docs":       "/api/docs",
 					"chat_demo":      "/chat",
 					"chat_websocket": "ws://localhost:8080/ws/chat",
 					"users_api":      "/api/users",
-					"grpc_bridge":    "/api/users/grpc",
 					"health":         "/health",
 				},
 			})
