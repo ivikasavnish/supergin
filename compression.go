@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -146,8 +147,8 @@ func (w *compressionWriter) Finish() {
 	// Only use compression if it actually reduces size
 	if len(compressed) < len(originalData) {
 		w.ResponseWriter.Header().Set("Content-Encoding", encoding)
-		w.ResponseWriter.Header().Set("X-Original-Size", string(rune(len(originalData))))
-		w.ResponseWriter.Header().Set("X-Compressed-Size", string(rune(len(compressed))))
+		w.ResponseWriter.Header().Set("X-Original-Size", strconv.Itoa(len(originalData)))
+		w.ResponseWriter.Header().Set("X-Compressed-Size", strconv.Itoa(len(compressed)))
 		w.ResponseWriter.Write(compressed)
 	} else {
 		// Compressed size is larger, send uncompressed
