@@ -325,6 +325,15 @@ func main() {
 		DocsPath:       "/api/docs",
 	})
 
+	// Setup user functions (programmable functions)
+	setupUserFunctions(app)
+
+	// Add global compression middleware using Snappy
+	app.Use(supergin.SnappyCompressionMiddleware(supergin.CompressionConfig{
+		Type:    supergin.CompressionSnappy,
+		MinSize: 512, // Compress responses larger than 512 bytes
+	}))
+
 	// Setup routes
 	setupRoutes(app)
 
@@ -332,6 +341,8 @@ func main() {
 	fmt.Println("🚀 SuperGin server starting on :8080")
 	fmt.Println("📚 API Documentation: http://localhost:8080/api/docs")
 	fmt.Println("👥 Users API: http://localhost:8080/users")
+	fmt.Println("🗜️  Compression: Snappy enabled for responses > 512 bytes")
+	fmt.Println("⚡ User Functions: Custom middleware registered")
 
 	app.Run(":8080")
 }
@@ -363,6 +374,35 @@ func setupDI() {
 	}, "userRepository")
 
 	fmt.Println("✅ Dependency injection configured")
+}
+
+func setupUserFunctions(app *supergin.Engine) {
+	// Register custom user functions (programmable middleware)
+	
+	// Custom request logger
+	_, logHandler := supergin.LoggingFunction("custom_logger")
+	app.RegisterUserFunction("custom_logger", "Custom request logger", logHandler)
+
+	// Custom timing function
+	_, timingHandler := supergin.TimingFunction("request_timer")
+	app.RegisterUserFunction("request_timer", "Request timing middleware", timingHandler)
+
+	// Custom authentication function (example - always passes)
+	_, authHandler := supergin.AuthenticationFunction("api_auth", func(c *gin.Context) bool {
+		// In real usage, check API key, JWT token, etc.
+		apiKey := c.GetHeader("X-API-Key")
+		return apiKey != "" // Simple check for demo
+	})
+	app.RegisterUserFunction("api_auth", "API key authentication", authHandler)
+
+	// Custom transform function (add response headers)
+	_, transformHandler := supergin.TransformFunction("add_headers", func(c *gin.Context) {
+		c.Header("X-Powered-By", "SuperGin")
+		c.Header("X-Version", "1.0.0")
+	})
+	app.RegisterUserFunction("add_headers", "Add custom response headers", transformHandler)
+
+	fmt.Println("✅ User functions registered")
 }
 
 func setupRoutes(app *supergin.Engine) {
@@ -485,6 +525,59 @@ func setupRoutes(app *supergin.Engine) {
 			})
 		})
 
+	// User functions demonstration route
+	app.Named("user_functions_demo").
+		GET("/demo/user-functions").
+		WithDescription("Demonstrate programmable user functions").
+		WithTags("demo", "user-functions").
+		ApplyUserFunction("add_headers").
+		ApplyUserFunction("request_timer").
+		Handler(func(c *gin.Context) {
+			funcs := app.ListUserFunctions()
+			funcList := make([]string, 0, len(funcs))
+			for name := range funcs {
+				funcList = append(funcList, name)
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"message":           "User Functions Demo",
+				"registered_funcs":  funcList,
+				"total_functions":   len(funcs),
+				"compression":       "Snappy enabled",
+				"applied_to_route":  []string{"add_headers", "request_timer"},
+			})
+		})
+
+	// Compression demonstration route with large response
+	app.Named("compression_demo").
+		GET("/demo/compression").
+		WithDescription("Demonstrate Snappy compression with large response").
+		WithTags("demo", "compression").
+		Handler(func(c *gin.Context) {
+			// Create a large response to demonstrate compression
+			largeData := make([]map[string]interface{}, 100)
+			for i := 0; i < 100; i++ {
+				largeData[i] = map[string]interface{}{
+					"id":          i,
+					"name":        fmt.Sprintf("User %d", i),
+					"email":       fmt.Sprintf("user%d@example.com", i),
+					"description": "This is a sample user record with some data to demonstrate compression. The more data we have, the better the compression ratio will be.",
+					"metadata": map[string]interface{}{
+						"created_at": time.Now(),
+						"updated_at": time.Now(),
+						"active":     true,
+					},
+				}
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"message":      "Large response to demonstrate compression",
+				"total_records": 100,
+				"compression":  "Check X-Compressed-Size header",
+				"data":         largeData,
+			})
+		})
+
 	// Print route summary
 	fmt.Println("\n📋 Generated Routes:")
 	fmt.Printf("   GET    /users           -> %s (List users)\n", userRoutes.List)
@@ -498,6 +591,8 @@ func setupRoutes(app *supergin.Engine) {
 	fmt.Println("   GET    /users/stats          -> users_stats")
 	fmt.Println("   GET    /health               -> health_check")
 	fmt.Println("   GET    /di/test              -> di_test")
+	fmt.Println("   GET    /demo/user-functions  -> user_functions_demo")
+	fmt.Println("   GET    /demo/compression     -> compression_demo")
 	fmt.Println("   GET    /api/docs             -> API documentation")
 
 	fmt.Printf("\n🔗 Example URLs:\n")

@@ -12,6 +12,8 @@ An enhanced Gin framework for Go that provides Rails-like conventions, dependenc
 - 📄 **Automatic API Documentation** - Built-in endpoint for API introspection
 - 🔌 **WebSocket Support** - Real-time bidirectional communication with connection management
 - 🌉 **gRPC-HTTP Bridge** - Automatic conversion between gRPC and HTTP with protobuf support
+- 🗜️ **Snappy Compression** - High-performance compression using Google's Snappy algorithm
+- ⚡ **Programmable User Functions** - Custom middleware and function registry
 - 🧪 **Testable Route Registry** - Easy testing and route verification
 - 🔧 **Fluent API** - Chainable, readable route definitions
 
@@ -235,6 +237,75 @@ This creates:
 - **Type Safety**: Compile-time type checking
 - **Metadata Handling**: HTTP headers ↔ gRPC metadata
 
+## 🗜️ Snappy Compression
+
+SuperGin includes high-performance compression using Google's Snappy algorithm:
+
+```go
+// Enable Snappy compression for all responses
+app.Use(supergin.SnappyCompressionMiddleware(supergin.CompressionConfig{
+    Type:    supergin.CompressionSnappy,
+    MinSize: 1024, // Only compress responses larger than 1KB
+}))
+
+// Or use gzip compression
+app.Use(supergin.SnappyCompressionMiddleware(supergin.CompressionConfig{
+    Type:  supergin.CompressionGzip,
+    Level: 6, // Compression level 1-9
+}))
+
+// Both request decompression and response compression
+app.Use(supergin.CompressionMiddleware())
+```
+
+### Compression Features
+
+- **Multiple Algorithms**: Snappy (fast) or Gzip (smaller)
+- **Automatic Detection**: Only compresses when beneficial
+- **Configurable**: Set minimum size, excluded paths, and file types
+- **Request Decompression**: Automatically decompress incoming requests
+- **Headers**: Adds `Content-Encoding` and size headers
+
+## ⚡ Programmable User Functions
+
+Register and apply custom middleware functions dynamically:
+
+```go
+// Register a custom logging function
+_, logHandler := supergin.LoggingFunction("api_logger")
+app.RegisterUserFunction("api_logger", "API request logger", logHandler)
+
+// Register a custom authentication function
+_, authHandler := supergin.AuthenticationFunction("jwt_auth", func(c *gin.Context) bool {
+    token := c.GetHeader("Authorization")
+    return validateJWT(token) // Your validation logic
+})
+app.RegisterUserFunction("jwt_auth", "JWT authentication", authHandler)
+
+// Apply user functions to routes
+app.Named("protected_route").
+    GET("/api/protected").
+    ApplyUserFunction("jwt_auth").
+    ApplyUserFunction("api_logger").
+    Handler(protectedHandler)
+
+// Chain multiple user functions
+app.Named("complex_route").
+    GET("/api/complex").
+    ChainUserFunctions("auth", "logger", "timer").
+    Handler(complexHandler)
+
+// List all registered user functions
+functions := app.ListUserFunctions()
+```
+
+### Built-in User Function Builders
+
+- **LoggingFunction**: Custom request logging
+- **TimingFunction**: Request timing and performance monitoring
+- **AuthenticationFunction**: Custom authentication with validator
+- **TransformFunction**: Request/response transformation
+
 ## 📦 Input/Output Validation
 
 Automatic validation using struct tags:
@@ -454,6 +525,7 @@ This project is licensed under the MIT License.
 - WebSocket support via [Gorilla WebSocket](https://github.com/gorilla/websocket)  
 - gRPC integration with [gRPC-Go](https://google.golang.org/grpc)
 - Validation by [go-playground/validator](https://github.com/go-playground/validator)
+- Compression powered by [Google Snappy](https://github.com/google/snappy)
 
 ---
 

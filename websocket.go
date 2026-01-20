@@ -24,7 +24,7 @@ type WebSocketHandler interface {
 type WebSocketConnection struct {
 	ID       string
 	Conn     *websocket.Conn
-	Send     chan []byte
+	sendCh   chan []byte
 	Hub      *WebSocketHub
 	User     interface{} // User context/session data
 	Metadata map[string]interface{}
@@ -99,7 +99,7 @@ func (h *WebSocketHub) Run() {
 			h.mutex.Lock()
 			if _, ok := h.connections[conn.ID]; ok {
 				delete(h.connections, conn.ID)
-				close(conn.Send)
+				close(conn.sendCh)
 			}
 			h.mutex.Unlock()
 
@@ -113,9 +113,9 @@ func (h *WebSocketHub) Run() {
 			h.mutex.RLock()
 			for _, conn := range h.connections {
 				select {
-				case conn.Send <- message:
+				case conn.sendCh <- message:
 				default:
-					close(conn.Send)
+					close(conn.sendCh)
 					delete(h.connections, conn.ID)
 				}
 			}
@@ -180,7 +180,7 @@ func (conn *WebSocketConnection) Send(messageType string, data interface{}) erro
 	}
 
 	select {
-	case conn.Send <- msgBytes:
+	case conn.sendCh <- msgBytes:
 		return nil
 	default:
 		return fmt.Errorf("connection send channel is full")
@@ -263,7 +263,7 @@ func handleWebSocketUpgrade(c *gin.Context, hub *WebSocketHub) {
 	wsConn := &WebSocketConnection{
 		ID:       connID,
 		Conn:     conn,
-		Send:     make(chan []byte, 256),
+		sendCh:   make(chan []byte, 256),
 		Hub:      hub,
 		Metadata: make(map[string]interface{}),
 	}
@@ -326,7 +326,7 @@ func (conn *WebSocketConnection) writePump() {
 
 	for {
 		select {
-		case message, ok := <-conn.Send:
+		case message, ok := <-conn.sendCh:
 			conn.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if !ok {
 				conn.Conn.WriteMessage(websocket.CloseMessage, []byte{})
@@ -340,10 +340,10 @@ func (conn *WebSocketConnection) writePump() {
 			w.Write(message)
 
 			// Add queued messages to the current WebSocket message
-			n := len(conn.Send)
+			n := len(conn.sendCh)
 			for i := 0; i < n; i++ {
 				w.Write([]byte{'\n'})
-				w.Write(<-conn.Send)
+				w.Write(<-conn.sendCh)
 			}
 
 			if err := w.Close(); err != nil {

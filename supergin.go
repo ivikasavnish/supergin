@@ -16,11 +16,12 @@ import (
 // Engine wraps gin.Engine with enhanced capabilities
 type Engine struct {
 	*gin.Engine
-	routes    map[string]*RouteInfo
-	routesMux sync.RWMutex
-	validator *validator.Validate
-	config    Config
-	di        *DIContainer
+	routes        map[string]*RouteInfo
+	routesMux     sync.RWMutex
+	validator     *validator.Validate
+	config        Config
+	di            *DIContainer
+	userFunctions *UserFunctionRegistry
 }
 
 // Config holds configuration for SuperGin
@@ -64,11 +65,12 @@ func New(config ...Config) *Engine {
 	}
 
 	engine := &Engine{
-		Engine:    gin.New(),
-		routes:    make(map[string]*RouteInfo),
-		validator: validator.New(),
-		config:    cfg,
-		di:        GetDI(),
+		Engine:        gin.New(),
+		routes:        make(map[string]*RouteInfo),
+		validator:     validator.New(),
+		config:        cfg,
+		di:            GetDI(),
+		userFunctions: NewUserFunctionRegistry(),
 	}
 
 	// Add built-in middleware
@@ -157,10 +159,11 @@ func (e *Engine) setupDocsEndpoint() {
 		
 		// Convert to JSON-serializable format
 		docs := map[string]interface{}{
-			"routes":       routes,
-			"generated_at": time.Now(),
-			"total_routes": len(routes),
-			"di_services":  e.di.ListServices(),
+			"routes":         routes,
+			"generated_at":   time.Now(),
+			"total_routes":   len(routes),
+			"di_services":    e.di.ListServices(),
+			"user_functions": e.ListUserFunctions(),
 		}
 		
 		c.JSON(http.StatusOK, docs)

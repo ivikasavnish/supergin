@@ -5,6 +5,7 @@ go 1.24.3
 require (
 	github.com/gin-gonic/gin v1.10.1
 	github.com/go-playground/validator/v10 v10.26.0
+	github.com/golang/snappy v1.0.0
 	github.com/gorilla/websocket v1.5.3
 	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
